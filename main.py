@@ -12,6 +12,8 @@ Usage:
     Build the Docker image and run it with the provided Dockerfile.
 
 Functions:
+    - global_config:
+        Loads the global configuration for the core service.
     - create_app:
         Creates the Flask application instance and sets up the configuration.
 
@@ -19,25 +21,73 @@ Dependencies:
     - Flask: For creating the web application.
     - Flask-Session: For session management.
     - os: For environment variable access.
+    - logging: For logging messages to the terminal.
 
 Custom Dependencies:
     - api.core_api: For API endpoints of the core service.
+    - config.GlobalConfig: For loading global configuration.
 """
 
+
+# Standard library imports
 from flask import Flask
 from flask_session import Session
 import os
+import logging
 
+# Custom imports
 from api import core_api
+from config import GlobalConfig
 
 
-def create_app() -> Flask:
+def global_config() -> GlobalConfig:
+    """
+    Load the global configuration for the web service.
+    This function initializes the GlobalConfig class
+
+    Args:
+        None
+
+    Returns:
+        GlobalConfig: An instance of the GlobalConfig class with loaded
+            configuration.
+    """
+    config = GlobalConfig()
+    config.load_config()
+    return config
+
+
+def logging_setup() -> None:
+    """
+    Set up a root logger for the web service.
+    This function configures the logging level based on the global
+    configuration.
+
+    Args:
+        None
+
+    Returns:
+        None
+    """
+
+    # Set up the logging level based on the configuration
+    log_level_str = app_config.config['web']['logging-level'].upper()
+    log_level = getattr(logging, log_level_str, logging.INFO)
+
+    # Configure the logging
+    logging.basicConfig(level=log_level)
+    logging.info("Logging level set to: %s", log_level_str)
+
+
+def create_app(
+    config: GlobalConfig,
+) -> Flask:
     """
     Create the Flask application instance.
     Registers the necessary blueprints for the core service.
 
     Args:
-        None
+        config (GlobalConfig): The global configuration instance.
 
     Returns:
         Flask: The Flask application instance with the necessary
@@ -49,6 +99,7 @@ def create_app() -> Flask:
     app.config['SECRET_KEY'] = os.getenv('api_master_pw')
     app.config['SESSION_TYPE'] = 'filesystem'
     app.config['SESSION_FILE_DIR'] = '/app/flask_session'
+    app.config['GLOBAL_CONFIG'] = config
     Session(app)
 
     # Register blueprints
@@ -58,4 +109,8 @@ def create_app() -> Flask:
 
 
 # Setup the Core service
-app = create_app()
+app_config = global_config()
+logging_setup()
+app = create_app(
+    config=app_config
+)
