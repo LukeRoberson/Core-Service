@@ -31,9 +31,7 @@ Requirements:
 """
 
 import docker
-from docker.models.containers import Container
 from docker.models.images import Image
-from colorama import Fore, Style
 
 
 # Assume the Docker server is running on the host machine
@@ -104,67 +102,60 @@ class DockerApi:
         self.client.close()
 
     def container_status(
-        self
-    ) -> list[Container]:
+        self,
+        service_name: str,
+    ) -> dict | None:
         """
-        Get the status of all running containers.
+        Get the details and status of a given container.
 
         Args:
-            None
+            service_name (str): The service name of the container.
+                This is assigned to the container via a custom label
+                'net.networkdirection.service.name'.
 
         Returns:
-            list[Container]
-                A list of Container objects representing running containers.
+            dict:
+                A dict containing the container information.
+                If the container is not found, returns None
         """
 
-        containers = []
+        status = {}
+        containers = self.client.containers.list()
+        if not containers:
+            return None
 
-        for container in self.client.containers.list():
-            # Skip containers without labels
-            if not container.image.labels:
-                continue
-
-            # Skip containers with a service name (custom label)
-            service_name = container.image.labels.get(
+        for container in containers:
+            service_label = container.image.labels.get(
                 "net.networkdirection.service.name",
                 "Unknown Service"
             )
-            if service_name == "Unknown Service":
-                continue
 
-            # Get additional label data
-            title = container.image.labels.get(
-                "org.opencontainers.image.title",
-                "Unknown Title"
-            )
-            description = container.image.labels.get(
-                "org.opencontainers.image.description",
-                "No description available"
-            )
-            version = container.image.labels.get(
-                "org.opencontainers.image.version",
-                "Unknown Version"
-            )
+            if service_label == service_name:
+                # Get labels
+                title = container.image.labels.get(
+                    "org.opencontainers.image.title",
+                    "Unknown Title"
+                )
+                description = container.image.labels.get(
+                    "org.opencontainers.image.description",
+                    "No description available"
+                )
+                version = container.image.labels.get(
+                    "org.opencontainers.image.version",
+                    "Unknown Version"
+                )
 
-            # Print container information
-            print(f"Name: {Fore.YELLOW}{container.name}", Style.RESET_ALL)
+                status = {
+                    "name": container.name,
+                    "title": title,
+                    "description": description,
+                    "service_name": service_name,
+                    "version": version,
+                    "status": container.status,
+                    "health": container.health,
+                }
 
-            colour = Fore.GREEN if container.status == "running" else Fore.RED
-            print(f"Status: {colour}{container.status}", Style.RESET_ALL)
-
-            colour = Fore.GREEN if container.health == "healthy" else Fore.RED
-            print(f"Health: {colour}{container.health}", Style.RESET_ALL)
-
-            print(f"Title: {title}")
-            print(f"Description: {description}")
-            print(f"Service Name: {service_name}")
-            print(f"Version: {version}")
-            print("-" * 40, "\n")
-
-            # Append the container to the list
-            containers.append(container)
-
-        return containers
+        return status
 
     def list_images(
         self

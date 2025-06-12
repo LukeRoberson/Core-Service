@@ -13,6 +13,9 @@ Dependencies:
     - Flask: For creating the web API.
     - logging: For logging errors and warnings.
     - os: For file operations.
+
+Custom Dependencies:
+    - docker_api.DockerApi: For interacting with the Docker host.
 """
 
 
@@ -26,6 +29,9 @@ from flask import (
     jsonify,
     current_app,
 )
+
+# Custom imports
+from docker_api import DockerApi
 
 
 RELOAD_FILE = '/app/reload.txt'
@@ -42,7 +48,7 @@ core_api = Blueprint(
     '/api/health',
     methods=['GET']
 )
-def health() -> Response:
+def health() -> tuple[str, int]:
     '''
     API endpoint to test the web service.
     Called by health checks to verify the service is running.
@@ -116,6 +122,62 @@ def api_config() -> Response:
                 'result': 'success'
             }
         )
+
+    # If the method is not GET or PATCH, return a 405 Method Not Allowed
+    response = jsonify({'result': 'error', 'message': 'Method not allowed'})
+    response.status_code = 405
+    return response
+
+
+@core_api.route(
+    '/api/containers',
+    methods=['GET']
+)
+def api_containers() -> Response:
+    """
+    API endpoint to get the status of service containers.
+
+    Returns:
+        JSON response with the status of all running containers.
+    """
+
+    # Service containers, as they are defined in the compose file.
+    service_containers = [
+        "core",
+        "web-interface",
+        "security",
+        "logging",
+        "teams",
+        "scheduler",
+    ]
+
+    container_list = []
+    for service in service_containers:
+        with DockerApi() as dockerman:
+            container_details = dockerman.container_status(service)
+            if container_details:
+                container_list.append(container_details)
+            else:
+                logging.warning(
+                    "Container %s not found or not running", service
+                )
+                details = {
+                    'name': service,
+                    'title': 'missing',
+                    'description': 'unknown',
+                    'service_name': service,
+                    'version': 'unknown',
+                    'status': 'container not found',
+                    'health': 'unknown',
+                }
+                container_list.append(details)
+
+    return jsonify(
+        {
+            'result': 'success',
+            'services': container_list
+        }
+    )
 
 
 if __name__ == "__main__":
