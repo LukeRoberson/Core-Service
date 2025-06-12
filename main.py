@@ -26,6 +26,7 @@ Dependencies:
 Custom Dependencies:
     - api.core_api: For API endpoints of the core service.
     - config.GlobalConfig: For loading global configuration.
+    - docker_api.DockerApi: For interacting with the Docker host.
 """
 
 
@@ -38,6 +39,7 @@ import logging
 # Custom imports
 from api import core_api
 from config import GlobalConfig
+from docker_api import DockerApi
 
 
 def global_config() -> GlobalConfig:
@@ -107,6 +109,10 @@ def create_app(
 
     return app
 
+
+with DockerApi() as dockerman:
+    containers = dockerman.container_status()
+    images = dockerman.list_images()
 
 # Setup the Core service
 app_config = global_config()
