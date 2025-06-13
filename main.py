@@ -26,6 +26,7 @@ Dependencies:
 Custom Dependencies:
     - api.core_api: For API endpoints of the core service.
     - config.GlobalConfig: For loading global configuration.
+    - plugins.PluginConfig: For loading plugin configurations.
     - docker_api.DockerApi: For interacting with the Docker host.
 """
 
@@ -39,6 +40,7 @@ import logging
 # Custom imports
 from api import core_api
 from config import GlobalConfig
+from plugins import PluginConfig
 
 
 def global_config() -> GlobalConfig:
@@ -55,6 +57,29 @@ def global_config() -> GlobalConfig:
     """
     config = GlobalConfig()
     config.load_config()
+    return config
+
+
+def plugin_config() -> PluginConfig:
+    """
+    Load the plugin configuration for the entire app.
+
+    Returns:
+        PluginConfig: An instance of the PluginConfig class with loaded
+            plugin configurations.
+    """
+
+    config = PluginConfig()
+    config.load_config()
+
+    logging.info("%s plugins loaded", len(config))
+    for plugin in config:
+        logging.debug(
+            "Plugin '%s' loaded with webhook URL: %s",
+            plugin['name'],
+            plugin['webhook']['safe_url']
+        )
+
     return config
 
 
@@ -81,6 +106,7 @@ def logging_setup() -> None:
 
 
 def create_app(
+    plugins: PluginConfig,
     config: GlobalConfig,
 ) -> Flask:
     """
@@ -88,6 +114,7 @@ def create_app(
     Registers the necessary blueprints for the core service.
 
     Args:
+        plugins (PluginConfig): The plugin configuration instance.
         config (GlobalConfig): The global configuration instance.
 
     Returns:
@@ -101,6 +128,7 @@ def create_app(
     app.config['SESSION_TYPE'] = 'filesystem'
     app.config['SESSION_FILE_DIR'] = '/app/flask_session'
     app.config['GLOBAL_CONFIG'] = config
+    app.config['PLUGIN_LIST'] = plugins
     Session(app)
 
     # Register blueprints
@@ -112,6 +140,8 @@ def create_app(
 # Setup the Core service
 app_config = global_config()
 logging_setup()
+plugin_list = plugin_config()
 app = create_app(
+    plugins=plugin_list,
     config=app_config
 )

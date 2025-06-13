@@ -26,12 +26,15 @@ from flask import (
     Blueprint,
     Response,
     request,
-    jsonify,
     current_app,
+    jsonify,
+    make_response
 )
 
 # Custom imports
 from docker_api import DockerApi
+from config import GlobalConfig
+from plugins import PluginConfig
 
 
 RELOAD_FILE = '/app/reload.txt'
@@ -82,32 +85,48 @@ def api_config() -> Response:
     logging.debug("Global config requested through API")
 
     # Get the config, refresh the configuration
-    app_config = current_app.config['GLOBAL_CONFIG']
+    app_config: GlobalConfig = current_app.config['GLOBAL_CONFIG']
     app_config.load_config()
 
     # GET is used to get the current configuration
     if request.method == 'GET':
-        return jsonify(
-            {
-                'result': 'success',
-                'config': app_config.config
-            }
+        return make_response(
+            jsonify(
+                {
+                    'result': 'success',
+                    'config': app_config.config
+                }
+            ),
+            200
         )
 
     # PATCH is used to update config
     if request.method == 'PATCH':
         # The body of the request
         data = request.json
+        if data is None:
+            return make_response(
+                jsonify(
+                    {
+                        'result': 'error',
+                        'message': 'No data provided'
+                    }
+                ),
+                400
+            )
 
         result = app_config.update_config(data)
 
         # If this failed...
         if not result:
-            return jsonify(
-                {
-                    'result': 'error',
-                    'message': 'Failed to update configuration'
-                }
+            return make_response(
+                jsonify(
+                    {
+                        'result': 'error',
+                        'message': 'Failed to update configuration'
+                    }
+                ),
+                400
             )
 
         # If successful, recycle the workers to apply the changes
@@ -117,16 +136,54 @@ def api_config() -> Response:
         except Exception as e:
             logging.error("Failed to update reload.txt: %s", e)
 
-        return jsonify(
-            {
-                'result': 'success'
-            }
+        return make_response(
+            jsonify(
+                {
+                    'result': 'success'
+                }
+            ),
+            200
         )
 
     # If the method is not GET or PATCH, return a 405 Method Not Allowed
-    response = jsonify({'result': 'error', 'message': 'Method not allowed'})
-    response.status_code = 405
+    response = make_response(
+        jsonify(
+            {
+                'result': 'error',
+                'message': 'Method not allowed'
+            }
+        ),
+        405
+    )
     return response
+
+
+@core_api.route(
+    '/api/plugins',
+    methods=['GET']
+)
+def api_plugins() -> Response:
+    """
+    API endpoint to get the list of plugins.
+
+    Returns:
+        JSON response with the list of plugins.
+    """
+
+    # Get the config and refresh
+    plugin_config: PluginConfig = current_app.config['PLUGIN_LIST']
+    plugin_config.load_config()
+
+    # Return the list of plugins as a JSON response
+    return make_response(
+        jsonify(
+            {
+                'result': 'success',
+                'plugins': plugin_config.config
+            }
+        ),
+        200
+    )
 
 
 @core_api.route(
@@ -172,11 +229,14 @@ def api_containers() -> Response:
                 }
                 container_list.append(details)
 
-    return jsonify(
-        {
-            'result': 'success',
-            'services': container_list
-        }
+    return make_response(
+        jsonify(
+            {
+                'result': 'success',
+                'services': container_list
+            }
+        ),
+        200
     )
 
 
