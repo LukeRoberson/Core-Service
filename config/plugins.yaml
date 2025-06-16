@@ -1,0 +1,15 @@
+- description: A test plugin
+  name: Test Plugin
+  webhook:
+    allowed-ip:
+    - 1.1.1.1
+    secret: '123'
+    url: webhook-url-1
+- description: Another plug lives here
+  name: 'Test Plugin #2'
+  webhook:
+    allowed-ip:
+    - 10.10.10.10
+    - 10.36.0.0/16
+    secret: webhook-secret
+    url: webhook-url-2

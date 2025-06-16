@@ -1,0 +1,24 @@
+authentication:
+  admin-group: Azure AD group for admin users
+  app-id: Azure App ID
+  app-secret: Azure App Secret
+  redirect-uri: https://your-redirect-uri
+  salt: Randomly generated salt
+azure:
+  tenant-id: your-tenant-id-test
+sql:
+  database: your-database
+  password: your-password
+  port: 1433
+  salt: Randomly generated salt for SQL
+  server: your-sql-server
+  username: your-username
+teams:
+  app-id: Azure App ID for Teams
+  app-secret: Azure App Secret for Teams
+  private-key: Private key file for Teams
+  public-key: Public key file for Teams
+  salt: Randomly generated salt for Teams
+  user: Azure AD user for Teams
+web:
+  logging-level: info

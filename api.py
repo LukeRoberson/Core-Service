@@ -93,8 +93,8 @@ def api_config() -> Response:
         return make_response(
             jsonify(
                 {
-                    'result': 'success',
-                    'config': app_config.config
+                    "result": "success",
+                    "config": app_config.config
                 }
             ),
             200
@@ -108,8 +108,8 @@ def api_config() -> Response:
             return make_response(
                 jsonify(
                     {
-                        'result': 'error',
-                        'message': 'No data provided'
+                        "result": "error",
+                        "message": "No data provided"
                     }
                 ),
                 400
@@ -122,8 +122,8 @@ def api_config() -> Response:
             return make_response(
                 jsonify(
                     {
-                        'result': 'error',
-                        'message': 'Failed to update configuration'
+                        "result": "error",
+                        "message": "Failed to update configuration"
                     }
                 ),
                 400
@@ -139,7 +139,7 @@ def api_config() -> Response:
         return make_response(
             jsonify(
                 {
-                    'result': 'success'
+                    "result": "success"
                 }
             ),
             200
@@ -149,8 +149,8 @@ def api_config() -> Response:
     response = make_response(
         jsonify(
             {
-                'result': 'error',
-                'message': 'Method not allowed'
+                "result": "error",
+                "message": "Method not allowed"
             }
         ),
         405
@@ -178,8 +178,8 @@ def api_plugins() -> Response:
     return make_response(
         jsonify(
             {
-                'result': 'success',
-                'plugins': plugin_config.config
+                "result": "success",
+                "plugins": plugin_config.config
             }
         ),
         200
