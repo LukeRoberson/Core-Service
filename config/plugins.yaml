@@ -3,13 +3,23 @@
   webhook:
     allowed-ip:
     - 1.1.1.1
+    auth-type: basic
     secret: '123'
     url: webhook-url-1
-- description: Another plug lives here
+- description: Another plugin lives here
   name: 'Test Plugin #2'
   webhook:
     allowed-ip:
     - 10.10.10.10
     - 10.36.0.0/16
+    auth-type: hash256
     secret: webhook-secret
     url: webhook-url-2
+- description: A third plugin
+  name: 'Test Plugin #3'
+  webhook:
+    allowed-ip:
+    - 0.0.0.0/0
+    auth-type: none
+    secret: ''
+    url: webhook-url-3

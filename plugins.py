@@ -11,6 +11,21 @@ Classes:
     - PluginConfig:
         Manages plugins; Add, configure, and delete plugins
 
+Plugin Configuration Format:
+    Each plugin is represented as a dictionary with the following structure:
+    {
+        "name": "<PLUGIN_NAME>",
+        "description": "<DESCRIPTION>",
+        "webhook": {
+            "url': "<URL>",
+            "secret": <SECRET>,
+            "auth-type": "<AUTH_TYPE>",
+            "allowed-ip": [
+                "<IP1>",
+                "<IP2>"
+            ]
+    }
+
 Dependancies:
     - yaml: For reading and writing YAML configuration files.
     - urllib.parse: For URL encoding.
@@ -25,7 +40,6 @@ Custom Dependancies:
 # Standard library imports
 import yaml
 import urllib.parse
-from typing import Iterator
 import logging
 import ipaddress
 
@@ -116,37 +130,6 @@ class PluginConfig:
 
         return self.config[index]
 
-    def __iter__(
-        self
-    ) -> Iterator[dict]:
-        """
-        Magic method to iterate over the config list.
-
-        Args:
-            None
-
-        Returns:
-            iter: An iterator over the config list.
-        """
-
-        return iter(self.config)
-
-    def __contains__(
-        self,
-        name
-    ) -> bool:
-        """
-        Magic method to check if a plugin name exists in the config list.
-
-        Args:
-            name (str): Name of the plugin to be checked.
-
-        Returns:
-            bool: True if the plugin name exists, False otherwise.
-        """
-
-        return any(entry['name'] == name for entry in self.config)
-
     def __repr__(
         self
     ) -> str:
@@ -177,7 +160,7 @@ class PluginConfig:
         """
 
         required_fields = ['name', 'description', 'webhook']
-        webhook_fields = ['url', 'secret', 'allowed-ip']
+        webhook_fields = ['url', 'secret', 'allowed-ip', 'auth-type']
 
         valid_plugins = []
         for idx, entry in enumerate(self.config):
@@ -257,26 +240,6 @@ class PluginConfig:
         # Validate the plugins
         self._validate_plugins()
 
-        """
-        Config format:
-
-        [
-            {
-                "name": "<NAME>",
-                "description": "<DESC>",
-                "webhook": {
-                    "url': "<URL>",
-                    "secret": <SECRET>,
-                    "allowed-ip": [
-                        "<IP1>",
-                        "<IP2>"
-                    ]
-                }
-            },
-            {...}
-        ]
-        """
-
         # Create the full webhook URL
         for entry in self.config:
             # Combine the plugin name and webhook URL to create a unique route
@@ -304,20 +267,6 @@ class PluginConfig:
 
         Returns:
             bool: True if the config updated successfully, False otherwise.
-
-        new_config format:
-        {
-            "plugin_name": <ORIGINAL_NAME>,
-            "name": "<NEW_NAME>",
-            "description": "<DESCRIPTION>",
-            "webhook": {
-                "url': "<URL>",
-                "secret": <SECRET>,
-                "allowed-ip": [
-                    "<IP1>",
-                    "<IP2>"
-                ]
-        }
         """
 
         logging.info("Attempting to update config: %s", new_config)
@@ -340,6 +289,10 @@ class PluginConfig:
 
                 entry['webhook']['secret'] = (
                     new_config['webhook']['secret']
+                )
+
+                entry['webhook']['auth-type'] = (
+                    new_config['webhook']['auth-type']
                 )
 
                 entry['webhook']['allowed-ip'] = (
@@ -402,19 +355,6 @@ class PluginConfig:
 
         Returns:
             bool: True for successful registration, False otherwise.
-
-        config format:
-        {
-            "name": "<PLUGIN_NAME>",
-            "description": "<DESCRIPTION>",
-            "webhook": {
-                "url': "<URL>",
-                "secret": <SECRET>,
-                "allowed-ip": [
-                    "<IP1>",
-                    "<IP2>"
-                ]
-        }
         """
 
         logging.info("Attempting to register plugin: %s", config)
@@ -440,6 +380,7 @@ class PluginConfig:
             "webhook": {
                 "url": config['webhook']['url'],
                 "secret": config['webhook']['secret'],
+                "auth-type": config['webhook']['auth-type'],
                 "allowed-ip": config['webhook']['allowed-ip']
             }
         }

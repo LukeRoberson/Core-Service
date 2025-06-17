@@ -5,9 +5,25 @@ Adds API endpoints for the core service.
 
 Blueprint lists routes for the core API. This is registered in main.py
 
+Functions:
+    - get_plugin_by_name: Helper function to find a plugin by its name.
+    - recycle_workers: Recycles workers by touching a reload file.
+    - error_response: Standardized error response for the API.
+    - success_response: Standardized success response for the API.
+
 Routes:
     - /api/health:
         Test endpoint for health checks. Used by Docker
+    - /api/config:
+        GET: Retrieve the current global configuration.
+        PATCH: Update the global configuration.
+    - /api/plugins:
+        GET: Retrieve configuration for a specific plugin or all plugins.
+        POST: Add a new plugin.
+        PATCH: Update an existing plugin.
+        DELETE: Remove a plugin.
+    - /api/containers:
+        GET: Retrieve the status of service containers.
 
 Dependencies:
     - Flask: For creating the web API.
@@ -16,12 +32,15 @@ Dependencies:
 
 Custom Dependencies:
     - docker_api.DockerApi: For interacting with the Docker host.
+    - config.GlobalConfig: For managing global configuration.
+    - plugins.PluginConfig: For managing plugin configurations.
 """
 
 
 # Standard library imports
 import logging
 import os
+from typing import Optional
 from flask import (
     Blueprint,
     Response,
@@ -45,6 +64,102 @@ core_api = Blueprint(
     'web_api',
     __name__
 )
+
+
+def get_plugin_by_name(
+    plugin_list: 'PluginConfig',
+    plugin_name: str
+) -> Optional[dict]:
+    """
+    Find a plugin's configuration by its name.
+
+    Args:
+        plugin_list (PluginConfig): The plugin configuration object.
+        plugin_name (str): The name of the plugin to find.
+    """
+
+    for plugin in plugin_list.config:
+        if plugin['name'] == plugin_name:
+            return plugin
+
+    return None
+
+
+def recycle_workers() -> None:
+    """
+    Recycle the workers by touching the reload file.
+    This is used to apply configuration changes.
+
+    Args:
+        None
+
+    Returns:
+        None
+    """
+
+    try:
+        with open(RELOAD_FILE, 'a'):
+            os.utime(RELOAD_FILE, None)
+
+    except Exception as e:
+        logging.error("Failed to update reload.txt: %s", e)
+
+
+def error_response(
+    message: str,
+    status: int = 400,
+) -> Response:
+    """
+    Standardized error response for the API.
+
+    Args:
+        message (str): The error message to return.
+        status (int): The HTTP status code for the error. Defaults to 400.
+
+    Returns:
+        Response: A Flask response object with the error message
+            and status code.
+    """
+
+    return make_response(
+        jsonify(
+            {
+                'result': 'error',
+                'message': message
+            }
+        ),
+        status
+    )
+
+
+def success_response(
+    message: Optional[str] = None,
+    data: Optional[dict] = None,
+    status: int = 200,
+) -> Response:
+    """
+    Standardized success response for the API.
+
+    Args:
+        message (str, optional): A success message to include in the response.
+        data (dict, optional): Additional data to include in the response.
+        status (int): The HTTP status code for the response. Defaults to 200.
+
+    Returns:
+        Response: A Flask response object with the success message and data.
+    """
+
+    # Standard response structure
+    resp = {'result': 'success'}
+
+    # Add optional message and data if provided
+    if message:
+        resp['message'] = message
+    if data:
+        resp.update(data)
+
+    # Create and return the response
+    return make_response(jsonify(resp), status)
 
 
 @core_api.route(
@@ -90,14 +205,10 @@ def api_config() -> Response:
 
     # GET is used to get the current configuration
     if request.method == 'GET':
-        return make_response(
-            jsonify(
-                {
-                    "result": "success",
-                    "config": app_config.config
-                }
-            ),
-            200
+        return success_response(
+            data={
+                'config': app_config.config
+            }
         )
 
     # PATCH is used to update config
@@ -105,29 +216,13 @@ def api_config() -> Response:
         # The body of the request
         data = request.json
         if data is None:
-            return make_response(
-                jsonify(
-                    {
-                        "result": "error",
-                        "message": "No data provided"
-                    }
-                ),
-                400
-            )
+            return error_response('No data provided')
 
         result = app_config.update_config(data)
 
         # If this failed...
         if not result:
-            return make_response(
-                jsonify(
-                    {
-                        "result": "error",
-                        "message": "Failed to update configuration"
-                    }
-                ),
-                400
-            )
+            return error_response('Failed to update configuration')
 
         # If successful, recycle the workers to apply the changes
         try:
@@ -136,53 +231,136 @@ def api_config() -> Response:
         except Exception as e:
             logging.error("Failed to update reload.txt: %s", e)
 
-        return make_response(
-            jsonify(
-                {
-                    "result": "success"
-                }
-            ),
-            200
-        )
+        return success_response('Configuration updated successfully')
 
     # If the method is not GET or PATCH, return a 405 Method Not Allowed
-    response = make_response(
-        jsonify(
-            {
-                "result": "error",
-                "message": "Method not allowed"
-            }
-        ),
-        405
+    return error_response(
+        'Method not allowed',
+        status=405
     )
-    return response
 
 
 @core_api.route(
     '/api/plugins',
-    methods=['GET']
+    methods=['GET', 'POST', 'PATCH', 'DELETE']
 )
 def api_plugins() -> Response:
     """
-    API endpoint to get the list of plugins.
+    API endpoint to manage plugins.
+    Called by the Web Interface when changes are made.
+
+    Methods:
+        GET - Retrieve config for a specific plugin, or a list of all plugins.
+        POST - Add a new plugin.
+        PATCH - Update an existing plugin.
+        DELETE - Remove a plugin.
+
+    POST/JSON body should contain the plugin configuration.
+
+    PATCH/JSON body should contain the updated plugin configuration.
+
+    DELETE/JSON body should contain the name of the plugin to remove.
 
     Returns:
-        JSON response with the list of plugins.
+        JSON response indicating success.
     """
 
     # Get the config and refresh
     plugin_config: PluginConfig = current_app.config['PLUGIN_LIST']
     plugin_config.load_config()
 
-    # Return the list of plugins as a JSON response
-    return make_response(
-        jsonify(
-            {
-                "result": "success",
-                "plugins": plugin_config.config
-            }
-        ),
-        200
+    # GET is used to get the current configuration for a specific plugin
+    if request.method == 'GET':
+        # Get the name of the plugin from the request headers
+        plugin_name = request.headers.get('X-Plugin-Name')
+        if not plugin_name:
+            return make_response(
+                jsonify(
+                    {
+                        'result': 'error',
+                        'message': 'Missing X-Plugin-Name header'
+                    }
+                ),
+                400
+            )
+
+        # If needed, get a list of all plugins
+        if plugin_name == 'all':
+            return make_response(
+                jsonify(
+                    {
+                        "result": "success",
+                        "plugins": plugin_config.config
+                    }
+                ),
+                200
+            )
+
+        # Find the plugin by name
+        plugin = get_plugin_by_name(
+            plugin_list=plugin_config,
+            plugin_name=plugin_name,
+        )
+        if plugin:
+            return jsonify(
+                {
+                    'result': 'success',
+                    'plugin': plugin
+                }
+            )
+
+        else:
+            return make_response(
+                jsonify(
+                    {
+                        'result': 'error',
+                        'message': f'Plugin {plugin_name} not found'
+                    }
+                ),
+                404
+            )
+
+    # POST is used to add a new plugin
+    elif request.method == 'POST':
+        if not request.json:
+            return error_response('No data provided')
+
+        result = plugin_config.register(request.json)
+        if not result:
+            return error_response('Failed to add plugin')
+
+        recycle_workers()
+        return success_response('Plugin added successfully')
+
+    # PATCH to update an existing plugin
+    elif request.method == 'PATCH':
+        if not request.json:
+            return error_response('No data provided')
+
+        result = plugin_config.update_config(request.json)
+        if not result:
+            return error_response('Failed to update plugin configuration')
+
+        recycle_workers()
+        return success_response('Plugin updated successfully')
+
+    elif request.method == 'DELETE':
+        data = request.json
+        if not data or 'name' not in data:
+            return error_response('Missing plugin name in request body')
+
+        plugin_name = data['name']
+        result = plugin_config.delete(plugin_name)
+        if not result:
+            return error_response('Plugin not found or could not be deleted')
+
+        recycle_workers()
+        return success_response('Plugin deleted successfully')
+
+    # For unknown methods, return a 405 Method Not Allowed
+    return error_response(
+        'Method not allowed',
+        status=405
     )
 
 
@@ -229,14 +407,10 @@ def api_containers() -> Response:
                 }
                 container_list.append(details)
 
-    return make_response(
-        jsonify(
-            {
-                'result': 'success',
-                'services': container_list
-            }
-        ),
-        200
+    return success_response(
+        data={
+            'services': container_list
+        }
     )
 
 
