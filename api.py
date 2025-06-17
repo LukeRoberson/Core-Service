@@ -344,6 +344,7 @@ def api_plugins() -> Response:
         recycle_workers()
         return success_response('Plugin updated successfully')
 
+    # DELETE to remove a plugin
     elif request.method == 'DELETE':
         data = request.json
         if not data or 'name' not in data:

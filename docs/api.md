@@ -1,4 +1,5 @@
 # API
+## Endpoints
 
 There is an API in place so other services can access security functions.
 
