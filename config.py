@@ -158,7 +158,7 @@ class GlobalConfig:
         section_requirements = {
             "azure": ["tenant-id"],
             "authentication": [
-                "app-id", "app-secret", "salt", "redirect-uri", "admin-group"
+                "app-id", "app-secret", "salt", "admin-group"
             ],
             "teams": [
                 "app-id", "app-secret", "salt", "user",
@@ -206,9 +206,6 @@ class GlobalConfig:
             )
             self.config['authentication']['salt'] = (
                 config['auth_salt']
-            )
-            self.config['authentication']['redirect-uri'] = (
-                config['auth_redirect_uri']
             )
             self.config['authentication']['admin-group'] = (
                 config['auth_admin_group']

@@ -2,7 +2,6 @@ authentication:
   admin-group: Azure AD group for admin users
   app-id: Azure App ID
   app-secret: Azure App Secret
-  redirect-uri: https://your-redirect-uri
   salt: Randomly generated salt
 azure:
   tenant-id: your-tenant-id-test
