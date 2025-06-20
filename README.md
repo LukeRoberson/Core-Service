@@ -26,7 +26,6 @@ This includes:
 | config.py     | Manage the configuration of the entire application            |
 | plugins.py    | Manage plugins                                                |
 | docker_api.py | Get information about containers running in Docker            |
-| systemlog.py  | Send logging information to the logging service               |
 </br></br>
 
 
