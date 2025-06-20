@@ -10,14 +10,24 @@ Classes:
 Dependancies:
     - yaml: For reading and writing YAML configuration files.
     - logging: For logging messages.
+    - requests: For making HTTP requests to the crypto service.
+    - copy: For deep copying configuration data.
+
+Custom Dependencies:
+    - CryptoServices: For encrypting and decrypting sensitive information.
 """
 
 # Standard library imports
 import yaml
 import logging
+import copy
+
+# Custom imports
+from sdk import CryptoServices
 
 
 DEFAULT_CONFIG_FILE = "config/global.yaml"
+CRYPTO_URL = "http://security:5100/api/crypto"
 
 
 class GlobalConfig:
@@ -158,7 +168,7 @@ class GlobalConfig:
         section_requirements = {
             "azure": ["tenant-id"],
             "authentication": [
-                "app-id", "app-secret", "salt", "admin-group"
+                "app-id", "app-secret", "admin-group"
             ],
             "teams": [
                 "app-id", "app-secret", "salt", "user",
@@ -172,6 +182,22 @@ class GlobalConfig:
 
         # Validate the config
         self._validate_sections(self.config, section_requirements)
+
+        # Decrypt sensitive information
+        with CryptoServices(CRYPTO_URL) as crypto_service:
+            decrypted_teams, _ = crypto_service.decrypt(
+                self.config['teams']['app-secret'],
+                self.config['teams']['salt']
+            )
+
+            decrypted_sql, _ = crypto_service.decrypt(
+                self.config['sql']['password'],
+                self.config['sql']['salt']
+            )
+
+        # Update the running config with decrypted values
+        self.config['teams']['app-secret'] = decrypted_teams
+        self.config['sql']['password'] = decrypted_sql
 
     def update_config(
         self,
@@ -203,9 +229,6 @@ class GlobalConfig:
             )
             self.config['authentication']['app-secret'] = (
                 config['auth_app_secret']
-            )
-            self.config['authentication']['salt'] = (
-                config['auth_salt']
             )
             self.config['authentication']['admin-group'] = (
                 config['auth_admin_group']
@@ -266,11 +289,28 @@ class GlobalConfig:
             )
             return False
 
-        # Save the updated config back to the YAML file
+        # Copy the config to a new variable for encryption
+        encrypted_config = copy.deepcopy(self.config)
+
+        # Encrypt sensitive information
+        with CryptoServices(CRYPTO_URL) as crypto_service:
+            encrypted_teams, salt_teams = crypto_service.encrypt(
+                self.config['teams']['app-secret'],
+            )
+            encrypted_config['teams']['app-secret'] = encrypted_teams
+            encrypted_config['teams']['salt'] = salt_teams
+
+        with CryptoServices(CRYPTO_URL) as crypto_service:
+            encrypted_sql, salt_sql = crypto_service.encrypt(
+                self.config['sql']['password'],
+            )
+            encrypted_config['sql']['password'] = encrypted_sql
+            encrypted_config['sql']['salt'] = salt_sql
+
         try:
             with open(self.config_file, "w", encoding="utf-8") as f:
                 yaml.dump(
-                    self.config,
+                    encrypted_config,
                     f,
                     default_flow_style=False,
                     allow_unicode=True
