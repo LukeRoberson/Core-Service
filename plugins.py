@@ -44,10 +44,23 @@ import logging
 import ipaddress
 
 # Custom imports
-from systemlog import system_log
+from sdk import SystemLog
 
 
 DEFAULT_PLUGIN_FILE = "config/plugins.yaml"
+LOG_API_URL = "http://logging:5100/api/log"
+
+
+# Initialize the SystemLog with default values
+system_log = SystemLog(
+    logging_url=LOG_API_URL,
+    source="core-service",
+    destination=["web"],
+    group="service",
+    category="core",
+    alert="system",
+    severity="info"
+)
 
 
 def validate_ip_addresses(
