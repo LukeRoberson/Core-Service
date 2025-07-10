@@ -102,7 +102,7 @@ def logging_setup() -> None:
 
     # Configure the logging
     logging.basicConfig(level=log_level)
-    logging.info("Logging level set to: %s", log_level_str)
+    print(f"Logging level set to: {log_level_str}")
 
 
 def create_app(

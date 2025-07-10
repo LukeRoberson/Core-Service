@@ -373,24 +373,39 @@ def api_containers() -> Response:
     """
     API endpoint to get the status of service containers.
 
+    Accepts an optional 'container' parameter in the query string
+        to specify a single container to check.
+    If no container is provided, it defaults to a list of service containers
+        defined in the compose file.
+
     Returns:
         JSON response with the status of all running containers.
     """
 
-    # Service containers, as they are defined in the compose file.
-    service_containers = [
-        "core",
-        "web-interface",
-        "security",
-        "logging",
-        "teams",
-        "scheduler",
-    ]
+    # Get the 'container' parameter from the request (query string)
+    container = request.args.get('container', None)
+
+    # If a specific container is requested, use that.
+    if container:
+        containers = [container]
+
+    # Otherwise, use the default list of service containers.
+    else:
+        # Service containers, as they are defined in the compose file.
+        containers = [
+            "core",
+            "web-interface",
+            "security",
+            "logging",
+            "teams",
+            "scheduler",
+        ]
 
     container_list = []
-    for service in service_containers:
+    for service in containers:
         with DockerApi() as dockerman:
             container_details = dockerman.container_status(service)
+
             if container_details:
                 container_list.append(container_details)
             else:

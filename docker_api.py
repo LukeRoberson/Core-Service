@@ -32,6 +32,7 @@ Requirements:
 
 import docker
 from docker.models.images import Image
+import logging
 
 
 # Assume the Docker server is running on the host machine
@@ -129,8 +130,12 @@ class DockerApi:
                 "net.networkdirection.service.name",
                 "Unknown Service"
             )
+            plugin_label = container.image.labels.get(
+                "net.networkdirection.plugin.name",
+                "Unknown Plugin"
+            )
 
-            if service_label == service_name:
+            if service_label == service_name or plugin_label == service_name:
                 # Get labels
                 title = container.image.labels.get(
                     "org.opencontainers.image.title",
@@ -174,6 +179,8 @@ class DockerApi:
         images = []
 
         for image in self.client.images.list():
+            logging.info(f"Processing image: {image.tags}")
+
             # Skip images without tags
             if not image.tags:
                 continue
@@ -182,12 +189,19 @@ class DockerApi:
             if not image.labels:
                 continue
 
-            # Skip images that do not have a service name (custom label)
+            # Skip images that do not have a service or plugin name
             service_name = image.labels.get(
                 "net.networkdirection.service.name",
                 "Unknown Service"
             )
-            if service_name == "Unknown Service":
+            plugin_name = image.labels.get(
+                "net.networkdirection.plugin.name",
+                "Unknown Service"
+            )
+            if (
+                service_name == "Unknown Service" and
+                plugin_name == "Unknown Service"
+            ):
                 continue
 
             # Get additional label data
@@ -205,14 +219,14 @@ class DockerApi:
             )
 
             # Print image information
-            print(f"Tags: {', '.join(image.tags)}")
+            logging.info(f"Tags: {', '.join(image.tags)}")
 
-            print(f"Title: {title}")
-            print(f"Description: {description}")
-            print(f"Service Name: {service_name}")
-            print(f"Version: {version}")
+            logging.info(f"Title: {title}")
+            logging.info(f"Description: {description}")
+            logging.info(f"Service Name: {service_name}")
+            logging.info(f"Version: {version}")
 
-            print("-" * 40)
+            logging.info("-" * 40)
 
             # Append the image to the list
             images.append(image)
