@@ -70,7 +70,7 @@ def validate_ip_addresses(
     Validates a list of IP addresses.
 
     Args:
-        ip_addresses (list[str]): List of IP addresses to validate.
+        ip_addresses (list[str]): List of IP addresses or networks to validate.
 
     Returns:
         bool: True if all IP addresses are valid, False otherwise.
@@ -78,7 +78,14 @@ def validate_ip_addresses(
 
     try:
         for address in ip_addresses:
-            ipaddress.ip_address(address)
+            # Try to validate as an IP address
+            try:
+                ipaddress.ip_address(address)
+
+            # If not an IP address, try to validate as a network
+            except ValueError:
+                ipaddress.ip_network(address)
+
         return True
 
     except ValueError:
