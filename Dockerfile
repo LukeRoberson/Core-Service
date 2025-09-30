@@ -31,9 +31,11 @@ RUN chown -R appuser:appgroup /app
 # Switch to appuser to install Python dependencies in user space
 USER appuser
 
-# Copy the requirements file and install dependencies as appuser
-COPY --chown=appuser:appgroup requirements.txt .
-RUN pip install --user --upgrade pip && pip install --user -r requirements.txt
+# Copy the requirements file and install dependencies
+COPY pyproject.toml ./
+
+# Install dependencies
+RUN pip install --upgrade pip && pip install .
 
 # Add user pip packages to PATH
 ENV PATH="/home/appuser/.local/bin:${PATH}"

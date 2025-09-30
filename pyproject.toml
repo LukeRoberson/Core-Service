@@ -1,9 +1,46 @@
-[tool.project-metadata]
-name = "Core Service"
+[project]
+name = "Core"
 description = "The core service for the AI assistant app"
-version = "1.0.22"
+version = "1.0.28"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "docker==7.1.0",
+    "Flask==3.1.2",
+    "Flask-Session==0.8.0",
+    "PyYAML==6.0.3",
+    "requests==2.32.5",
+    "python-sdk @ git+https://github.com/LukeRoberson/python-sdk.git",
+]
+
+[build-system]
+requires = [
+    "setuptools>=61.0",
+    "wheel",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["*.py"]
+exclude = [
+    "tests*",
+    "docs*",
+    "config*",
+    "flask_session*",
+    "__pycache__*",
+    "*.pyc",
+]
 
 [tool.versioning]
 major = 1
 minor = 0
-patch = 22
+patch = 28
+
+[tool.flake8]
+max-line-length = 88
+exclude = [
+    "__pycache__",
+    "static",
+    "templates",
+]
