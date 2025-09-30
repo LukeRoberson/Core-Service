@@ -4,7 +4,24 @@ Module: docker_api.py
 Connects to a docker instance, and retrieves information
     about the running containers.
 
-Need to enable remote connections to the Docker daemon:
+Tries to connect via the docker socket first, then falls back to TCP.
+    If neither method works, raises a ConnectionError.
+
+If using a compose file, mount the docker socket:
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+Can override the connection method via the environment variable
+    in the compose file:
+        DOCKER_CONNECTION_METHOD=socket  # Forces socket connection
+        DOCKER_CONNECTION_METHOD=tcp     # Forces TCP connection
+        DOCKER_CONNECTION_METHOD=auto    # Uses default behavior
+
+To enable the Docker API over the unix socket, ensure the user
+    is in the 'docker' group:
+        sudo usermod -aG docker $USER
+
+To enable the Docker API over TCP on Linux:
     1. Edit /lib/systemd/system/docker.service
     2. Find the line starting with 'ExecStart'
     3. Add this to the line: '-H=tcp://0.0.0.0:2375'
@@ -30,13 +47,21 @@ Requirements:
     colorama - For colored terminal text output.
 """
 
+# Docker SDK for Python
 import docker
 from docker.models.images import Image
+from docker.errors import DockerException
+
+# Standard library imports
 import logging
+import os
+import platform
 
 
-# Assume the Docker server is running on the host machine
-DOCKER_SERVER = "host.docker.internal"
+# Docker socket paths
+DOCKER_SOCKET_UNIX = "/var/run/docker.sock"
+DOCKER_SOCKET_WINDOWS = "npipe://./pipe/docker_engine"
+DOCKER_SERVER_FALLBACK = "host.docker.internal"
 
 
 class DockerApi:
@@ -51,24 +76,99 @@ class DockerApi:
 
     def __init__(
         self,
-        server: str = DOCKER_SERVER,
-        port: int = 2375
+        server: str = DOCKER_SERVER_FALLBACK,
+        port: int = 2375,
+        timeout: int = 10,
+        force_tcp: bool = False
     ) -> None:
         """
         Initializes the DockerApi instance.
 
         Args:
-            server (str): The Docker server address.
+            server (str): The Docker server address (fallback for TCP).
             port (int): The port to connect to the Docker daemon.
                 Default is 2375.
+            timeout (int): The timeout for the connection in seconds.
+                Default is 10 seconds.
+            force_tcp (bool): Force the use of TCP connection instead of
+                Unix socket. Default is False.
+
+        Raises:
+            ConnectionError: If the Docker server is not reachable.
 
         Returns:
             None
         """
 
-        self.client: docker.DockerClient = docker.DockerClient(
-            base_url=f'tcp://{server}:{port}',
+        self.server = server
+        self.port = port
+        self.timeout = timeout
+        self.connection_method = None
+
+        # Check for environment variable override
+        docker_connection_method = os.getenv(
+            'DOCKER_CONNECTION_METHOD',
+            'auto'
+        ).lower()
+        print(
+            f"DOCKER_CONNECTION_METHOD is set to: {docker_connection_method}"
         )
+
+        # Override force_tcp based on environment variable
+        if docker_connection_method == 'tcp':
+            force_tcp = True
+        elif docker_connection_method == 'socket':
+            force_tcp = False
+
+        # Get a list of ways to connect, in order of preference
+        connection_attempts = self._get_connection_attempts(force_tcp)
+        last_exception = None
+
+        # Try each connection method until one succeeds
+        for attempt in connection_attempts:
+            print(
+                f"Attempting to connect to Docker daemon via "
+                f"{attempt['method']} at {attempt['url']}"
+            )
+
+            try:
+                self.client: docker.DockerClient = docker.DockerClient(
+                    base_url=attempt['url'],
+                    timeout=timeout
+                )
+
+                # Test the connection
+                self.client.ping()
+                self.connection_method = attempt['method']
+                logging.info(
+                    f"Connected to Docker daemon via {self.connection_method}"
+                )
+                return
+
+            except DockerException as docker_error:
+                logging.error(
+                    f"Failed to connect via {attempt['method']}: "
+                    f"{docker_error}"
+                )
+                last_exception = docker_error
+                continue
+
+            except Exception as general_error:
+                logging.error(
+                    f"Failed to connect via {attempt['method']}: "
+                    f"{general_error}"
+                )
+                last_exception = general_error
+                continue
+
+        # If all attempts failed
+        logging.error(
+            "Failed to connect to Docker daemon using all available methods"
+        )
+        raise ConnectionError(
+            "Unable to connect to Docker daemon. "
+            "Ensure Docker is running and accessible via socket or TCP."
+        ) from last_exception
 
     def __enter__(
         self
@@ -101,6 +201,55 @@ class DockerApi:
         """
 
         self.client.close()
+
+    def _get_connection_attempts(self, force_tcp: bool) -> list[dict]:
+        """
+        Get list of connection attempts in order of preference.
+
+        Args:
+            force_tcp (bool): Whether to force TCP connection.
+
+        Returns:
+            list[dict]: List of connection attempt configurations.
+        """
+
+        attempts = []
+
+        if not force_tcp:
+            # Try Unix socket first (Linux/macOS)
+            if (
+                platform.system() != "Windows" and
+                os.path.exists(DOCKER_SOCKET_UNIX)
+            ):
+                attempts.append({
+                    'url': f'unix://{DOCKER_SOCKET_UNIX}',
+                    'method': 'Unix socket'
+                })
+
+            # Try Windows named pipe
+            elif platform.system() == "Windows":
+                attempts.append({
+                    'url': DOCKER_SOCKET_WINDOWS,
+                    'method': 'Windows named pipe'
+                })
+
+        # Fallback to TCP connections
+        attempts.extend([
+            {
+                'url': f'tcp://{self.server}:{self.port}',
+                'method': f'TCP ({self.server}:{self.port})'
+            },
+            {
+                'url': 'tcp://localhost:2375',
+                'method': 'TCP (localhost:2375)'
+            },
+            {
+                'url': 'tcp://127.0.0.1:2375',
+                'method': 'TCP (127.0.0.1:2375)'
+            }
+        ])
+
+        return attempts
 
     def container_status(
         self,

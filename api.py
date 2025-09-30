@@ -403,25 +403,36 @@ def api_containers() -> Response:
 
     container_list = []
     for service in containers:
-        with DockerApi() as dockerman:
-            container_details = dockerman.container_status(service)
+        try:
+            with DockerApi() as dockerman:
+                container_details = dockerman.container_status(service)
 
-            if container_details:
-                container_list.append(container_details)
-            else:
-                logging.warning(
-                    "Container %s not found or not running", service
-                )
-                details = {
-                    'name': service,
-                    'title': 'missing',
-                    'description': 'unknown',
-                    'service_name': service,
-                    'version': 'unknown',
-                    'status': 'container not found',
-                    'health': 'unknown',
-                }
-                container_list.append(details)
+                if container_details:
+                    container_list.append(container_details)
+                else:
+                    logging.warning(
+                        "Container %s not found or not running", service
+                    )
+                    details = {
+                        'name': service,
+                        'title': 'missing',
+                        'description': 'unknown',
+                        'service_name': service,
+                        'version': 'unknown',
+                        'status': 'container not found',
+                        'health': 'unknown',
+                    }
+                    container_list.append(details)
+
+        except Exception as e:
+            logging.error(
+                f"Failed to get container {service} status: {e}"
+            )
+
+            return error_response(
+                f"Failed to get container {service} status: {e}",
+                status=500
+            )
 
     return success_response(
         data={
