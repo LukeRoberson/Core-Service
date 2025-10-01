@@ -1,5 +1,5 @@
-[project]
-name = "Core"
+[tool.project-metadata]
+name = "Core Service"
 description = "The core service for the AI assistant app"
 version = "1.0.29"
 readme = "README.md"
