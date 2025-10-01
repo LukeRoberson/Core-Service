@@ -12,15 +12,20 @@ LABEL net.networkdirection.healthz="http://localhost:5100/api/health"
 # The name of the service, as it should appear in the compose file
 LABEL net.networkdirection.service.name="core"
 
-# Switch back to root temporarily to install shadow package and copy entrypoint
+# Stay as root for setup operations
 USER root
 
 # Install shadow package for user management (if not already in base image)
-RUN apk add --no-cache shadow su-exec
+RUN apk add --no-cache shadow su-exec dos2unix
 
-# Copy the entrypoint script
+# Copy requirements first (for better layer caching)
+COPY requirements.txt .
+
+# Copy the entrypoint script, convert line endings, and set permissions
 COPY docker_entrypoint.sh /usr/local/bin/docker_entrypoint.sh
-RUN chmod +x /usr/local/bin/docker_entrypoint.sh
+RUN dos2unix /usr/local/bin/docker_entrypoint.sh && \
+    chmod +x /usr/local/bin/docker_entrypoint.sh && \
+    ls -la /usr/local/bin/docker_entrypoint.sh
 
 # Copy the rest of the application code
 COPY . .
@@ -31,9 +36,8 @@ RUN chown -R appuser:appgroup /app
 # Switch to appuser to install Python dependencies in user space
 USER appuser
 
-# Copy the requirements file and install dependencies as appuser
-COPY --chown=appuser:appgroup requirements.txt .
-RUN pip install --user --upgrade pip && pip install --user -r requirements.txt
+# Install dependencies as appuser
+RUN pip install --upgrade pip && pip install -r requirements.txt
 
 # Add user pip packages to PATH
 ENV PATH="/home/appuser/.local/bin:${PATH}"
